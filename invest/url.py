@@ -8,7 +8,7 @@ Contains URLs/APIs for statements
 import logging
 import requests
 from enum import Enum
-from constants import StockCode
+from constants import StockCode, InvestIndicators
 
 logger = logging.getLogger("URL")
 
@@ -125,10 +125,46 @@ class SnowballStatements(Statements):
             return None
         return resp.json()
 
+    def get_invest_indicators(self):
+        invest_indicators = {}
+        balance_statements = self.get_balance_statements().get("data").get("list")
+        for balance_statement in balance_statements:
+            report_annual = balance_statement.get("report_annual")
+            invest_indicators.update({report_annual: {}}) if report_annual not in invest_indicators else None
+            required_info = invest_indicators.get(report_annual)
+            required_info.update({InvestIndicators.DCF.value: balance_statement.get("total_cash")[0]})
+            capital_stock = balance_statement.get("common_stock")[0]
+            capital_stock += balance_statement.get("preferred_stock")[0] \
+                if balance_statement.get("preferred_stock")[0] is not None else 0
+            capital_stock += balance_statement.get("add_paid_in_capital")[0] \
+                if balance_statement.get("add_paid_in_capital")[0] is not None else 0
+            required_info.update({InvestIndicators.CAPITAL_STOCK.value: capital_stock})
+
+        income_statements = self.get_income_statements().get("data").get("list")
+        for income_statement in income_statements:
+            report_annual = income_statement.get("report_annual")
+            invest_indicators.update({report_annual: {}}) if report_annual not in invest_indicators else None
+            required_info = invest_indicators.get(report_annual)
+            required_info.update({InvestIndicators.EPS.value: income_statement.get("total_basic_earning_common_ps")[0]})
+            required_info.update({InvestIndicators.SALES.value: income_statement.get("total_revenue")[0]})
+
+            if InvestIndicators.CAPITAL_STOCK.value in invest_indicators.get(report_annual):
+                capital_stock = invest_indicators.get(report_annual).get(InvestIndicators.CAPITAL_STOCK.value)
+                roic = income_statement.get("income_from_co")[0] / capital_stock
+                required_info.update({InvestIndicators.ROIC.value: roic})
+
+        # pprint(income_statements)
+        # pprint(balance_statements)
+        return invest_indicators
+
 
 class Platforms(Enum):
     Snowball = SnowballStatements
     HithinkFlush = HithinkFlushStatements
+
+
+def get_invest_indicators(code, platform=Platforms.Snowball):
+    return platform.value(code.value).get_invest_indicators()
 
 
 def get_main_indicators(code, platform=Platforms.Snowball):
@@ -161,7 +197,8 @@ if __name__ == "__main__":
                         datefmt='%d-%b-%y %H:%M:%S',
                         level=logging.INFO)
 
+    pprint(get_invest_indicators(StockCode.NETFLIX, Platforms.Snowball))
     # pprint(get_main_indicators(StockCode.NETFLIX, Platforms.Snowball))
-    pprint(get_balance_statements(StockCode.NETFLIX, Platforms.Snowball))
+    # pprint(get_balance_statements(StockCode.NETFLIX, Platforms.Snowball))
     # pprint(get_income_statements(StockCode.NETFLIX, Platforms.Snowball))
     # pprint(get_cash_flow_statements(StockCode.NETFLIX, Platforms.Snowball))

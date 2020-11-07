@@ -14,3 +14,11 @@ class StockCode(Enum):
     BILIBILI = "BILI"
     SONY = "SNE"
     DISNEY = "DIS"
+
+
+class InvestIndicators(Enum):
+    ROIC = "return_on_invested_capital"
+    CAPITAL_STOCK = "capital_stock"
+    EPS = "earnings_per_share"
+    SALES = "sales"
+    DCF = "discounted_cash_flow"
